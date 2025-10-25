@@ -2,25 +2,38 @@ import math
 import pygame
 
 class Dart:
-    RADIUS = 10
+    RADIUS = 50
     COLOR = (100,100,255)
     LIFETIME = 100
     all_darts = []
-    def __init__(self, x, y, screen):
+    def __init__(self, x, y, z, exit_velocity, screen, dartboard):
         Dart.all_darts.append(self)
+        self.dartboard = dartboard
+        self.should_decay = False
+        self.velocity = exit_velocity
+        self.velocity[1] = -self.velocity[1]
         self.lifetime = Dart.LIFETIME
         self.screen = screen
-        self.center_coordinates = (x, y)
+        self.starting_distance_from_dartboard = z #CURRENTLY DOESN'T ACTUALLY REPRESENT DISTANCE FROM DARTBOARD ON LAUNCH
+        self.position = [x, y, z]
 
     def draw_self(self):
-        if self.lifetime > 0:
+        if self.has_reached_dartboard_depth():
+            self.should_decay = True
+        elif self.should_decay and self.lifetime > 0:
             self.lifetime -= 1
-            pygame.draw.circle(self.screen, self.COLOR, self.center_coordinates, self.RADIUS)
-        else:
+            pygame.draw.circle(self.screen, self.COLOR, self.position[:2], self.RADIUS)
+        elif self.should_decay and self.lifetime <= 0:
             Dart.all_darts.remove(self)
+        else:
+            pygame.draw.circle(self.screen, self.COLOR, self.position[:2], self.RADIUS*(1-self.position[2]/(self.dartboard.position[2]-self.position[2])))
+
+    def has_reached_dartboard_depth(self):
+        at_or_past_dartboard = self.position[2] >= self.dartboard.position[2]
+        return at_or_past_dartboard
        
     def __repr__(self):
-        return "Dart Coordinates: " + str(self.center_coordinates)
+        return "Dart Coordinates: " + str(self.position)
     
     @staticmethod
     def draw_all(screen):
@@ -30,8 +43,9 @@ class Dart:
 
 class Polar_Rectangle:
     HIT_COLOR = (0,0,255)
-    def __init__(self, radius1, radius2, theta1, theta2, color, screen):
+    def __init__(self, radius1, radius2, theta1, theta2, color, dartboard, screen):
         self.screen = screen
+        self.dartboard = dartboard
         self.non_hit_color = color
         self.color = self.non_hit_color
         self.xy_corners = []
@@ -47,10 +61,11 @@ class Polar_Rectangle:
     def check_for_collision(self, darts):
         has_collided = False
         for dart in darts:
-            has_collided = self.point_in_polygon(dart.center_coordinates, self.xy_corners)
+            has_collided = self.point_in_polygon(dart.position, self.xy_corners)
             if has_collided:
                 self.color = self.HIT_COLOR
-                self.when_collide(dart)
+                if dart.has_reached_dartboard_depth():
+                    self.when_collide(dart)
                 return has_collided
         self.color = self.non_hit_color
         return has_collided
@@ -106,9 +121,10 @@ class Dartboard:
     PER_REGION_DELTA_THETA = math.pi/8 
     #DARTBOARD_SIZE - THIN_RING_THICKNESS*2 - THICK_RING_THICKNESS*2 should = BULLSEYE THICKNESS
 
-    def __init__(self, screen) -> None:
+    def __init__(self, screen, position) -> None:
         self.DARTBOARD_SIZE = self.THIN_RING_THICKNESS*2 + self.THICK_RING_THICKNESS*2 + self.BULLSEYE_THICKNESS*2
         self.screen = screen
+        self.position = position
         self.all_rings = []
         self.all_rings.append(self.create_circle_of_polar_rectangles(self.DARTBOARD_SIZE-self.THIN_RING_THICKNESS,self.DARTBOARD_SIZE,self.PER_REGION_DELTA_THETA,(Dartboard.RED, Dartboard.GREEN)))
         self.all_rings.append(self.create_circle_of_polar_rectangles(self.DARTBOARD_SIZE-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS,self.DARTBOARD_SIZE-self.THIN_RING_THICKNESS,self.PER_REGION_DELTA_THETA,(Dartboard.BLACK, Dartboard.WHITE)))
@@ -130,7 +146,7 @@ class Dartboard:
     def create_circle_of_polar_rectangles(self, radius1, radius2, delta_theta, colors_to_alternate_between):
         polar_rectangles = [] 
         for i in range(int(2*math.pi/delta_theta)):
-            polar_rectangles.append(Polar_Rectangle(radius1, radius2, delta_theta*i, delta_theta*(i+1), colors_to_alternate_between[i%2], self.screen))
+            polar_rectangles.append(Polar_Rectangle(radius1, radius2, delta_theta*i, delta_theta*(i+1), colors_to_alternate_between[i%2], self, self.screen))
         return polar_rectangles
     
     @staticmethod
