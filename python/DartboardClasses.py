@@ -2,7 +2,8 @@ import math
 import pygame
 
 class Dart:
-    RADIUS = 50
+    RADIUS = 40
+    MIN_RADIUS = 10
     COLOR = (100,100,255)
     LIFETIME = 100
     all_darts = []
@@ -20,13 +21,15 @@ class Dart:
     def draw_self(self):
         if self.has_reached_dartboard_depth():
             self.should_decay = True
-        elif self.should_decay and self.lifetime > 0:
+
+        if self.should_decay and self.lifetime > 0:
             self.lifetime -= 1
-            pygame.draw.circle(self.screen, self.COLOR, self.position[:2], self.RADIUS)
-        elif self.should_decay and self.lifetime <= 0:
+
+        if self.should_decay and self.lifetime <= 0:
             Dart.all_darts.remove(self)
-        else:
-            pygame.draw.circle(self.screen, self.COLOR, self.position[:2], self.RADIUS*(1-self.position[2]/(self.dartboard.position[2]-self.position[2])))
+        
+        percent_of_distance_traveled = (self.position[2]-self.starting_distance_from_dartboard)/(self.dartboard.position[2]-self.starting_distance_from_dartboard)
+        pygame.draw.circle(self.screen, self.COLOR, self.position[:2], self.MIN_RADIUS+self.RADIUS*(1-percent_of_distance_traveled))
 
     def has_reached_dartboard_depth(self):
         at_or_past_dartboard = self.position[2] >= self.dartboard.position[2]
@@ -39,7 +42,6 @@ class Dart:
     def draw_all(screen):
         for dart in Dart.all_darts:
             dart.draw_self()
-        
 
 class Polar_Rectangle:
     HIT_COLOR = (0,0,255)
@@ -63,15 +65,19 @@ class Polar_Rectangle:
         for dart in darts:
             has_collided = self.point_in_polygon(dart.position, self.xy_corners)
             if has_collided:
-                self.color = self.HIT_COLOR
+                self.when_projected_collide()
                 if dart.has_reached_dartboard_depth():
                     self.when_collide(dart)
-                return has_collided
+                    #return True #Collided including the depth
+                return True #Collided only in x-y projection
         self.color = self.non_hit_color
-        return has_collided
+        return False
     
     def when_collide(self, dart):
         print(f'Collided with: {dart}')
+
+    def when_projected_collide(self):
+        self.color = self.HIT_COLOR
     
     def point_in_polygon(self, point, polygon):
         num_vertices = len(polygon)
@@ -109,6 +115,25 @@ class Polar_Rectangle:
 
     def __repr__(self):
         return "Polar Rectangle Corners: " + str(self.xy_corners)
+    
+class Polar_Circle:
+    def __init__(self, list_of_polar_rectangles, dartboard, screen):
+        self.screen = screen
+        self.dartboard = dartboard
+        self.list_of_polar_rectangles = list_of_polar_rectangles
+
+    def draw_self(self):
+        for polar_rectangle in self.list_of_polar_rectangles:
+            polar_rectangle.draw_self()
+
+    def check_for_collision(self, darts):
+        any_collisions = any([polar_rectangle.check_for_collision(darts) for polar_rectangle in self.list_of_polar_rectangles])
+        if any_collisions:
+            for polar_rectangle in self.list_of_polar_rectangles:
+                polar_rectangle.when_projected_collide()
+                
+    def __repr__(self):
+        return "Polar Circle: " + str(self.list_of_polar_rectangles)
 
 class Dartboard:
     GREEN = (0,255,0)
@@ -130,8 +155,8 @@ class Dartboard:
         self.all_rings.append(self.create_circle_of_polar_rectangles(self.DARTBOARD_SIZE-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS,self.DARTBOARD_SIZE-self.THIN_RING_THICKNESS,self.PER_REGION_DELTA_THETA,(Dartboard.BLACK, Dartboard.WHITE)))
         self.all_rings.append(self.create_circle_of_polar_rectangles(self.DARTBOARD_SIZE-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS-self.THIN_RING_THICKNESS,self.DARTBOARD_SIZE-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS,self.PER_REGION_DELTA_THETA,(Dartboard.RED, Dartboard.GREEN)))
         self.all_rings.append(self.create_circle_of_polar_rectangles(self.DARTBOARD_SIZE-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS,self.DARTBOARD_SIZE-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS-self.THIN_RING_THICKNESS,self.PER_REGION_DELTA_THETA,(Dartboard.BLACK, Dartboard.WHITE)))
-        self.all_rings.append(self.create_circle_of_polar_rectangles(self.DARTBOARD_SIZE-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS-self.BULLSEYE_THICKNESS,self.DARTBOARD_SIZE-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS,self.PER_REGION_DELTA_THETA,(Dartboard.GREEN, Dartboard.GREEN)))
-        self.all_rings.append(self.create_circle_of_polar_rectangles(0,self.DARTBOARD_SIZE-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS-self.BULLSEYE_THICKNESS,self.PER_REGION_DELTA_THETA,(Dartboard.RED, Dartboard.RED)))
+        self.all_rings.append([Polar_Circle(self.create_circle_of_polar_rectangles(self.DARTBOARD_SIZE-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS-self.BULLSEYE_THICKNESS,self.DARTBOARD_SIZE-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS,self.PER_REGION_DELTA_THETA,(Dartboard.GREEN, Dartboard.GREEN)),self,self.screen)])
+        self.all_rings.append([Polar_Circle(self.create_circle_of_polar_rectangles(0,self.DARTBOARD_SIZE-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS-self.BULLSEYE_THICKNESS,self.PER_REGION_DELTA_THETA,(Dartboard.RED, Dartboard.RED)),self, self.screen)])
 
     def check_for_collisions(self, darts):
         for ring in self.all_rings:

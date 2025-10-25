@@ -33,7 +33,7 @@ while running:
         if event.type == pygame.MOUSEBUTTONDOWN:
             # Get the mouse position at the time of the click
             mouse_x, mouse_y = event.pos
-            dart_manager.throw_dart(mouse_x, mouse_y, 1, [0,100,0.5])
+            dart_manager.throw_dart(mouse_x, mouse_y, 1, [0,100,2])
 
     screen.fill((0, 0, 0))
     dartboard.draw_self()
