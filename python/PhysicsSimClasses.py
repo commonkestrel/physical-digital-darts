@@ -15,7 +15,7 @@ class DartManager:
                 dart.position[0] += dart.velocity[0] * self.VELOCITY_SCALARS[0] * deltaTime
                 dart.position[1] += dart.velocity[1] * self.VELOCITY_SCALARS[1] * deltaTime
                 dart.position[2] += dart.velocity[2] * self.VELOCITY_SCALARS[2] * deltaTime
-                print(dart)
+                #print(dart)
 
     def throw_dart(self, x, y, z, exit_velocity):
         Dart(x, y, z, exit_velocity, self.screen, self.dartboard)

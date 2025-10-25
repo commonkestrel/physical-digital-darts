@@ -74,7 +74,8 @@ class Polar_Rectangle:
         return False
     
     def when_collide(self, dart):
-        print(f'Collided with: {dart}')
+        #print(f'Collided with: {dart}')
+        pass
 
     def when_projected_collide(self):
         self.color = self.HIT_COLOR
