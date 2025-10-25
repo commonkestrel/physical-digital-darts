@@ -28,14 +28,15 @@ fn main() -> ! {
      */
 
     let mut led = pins.d13.into_output();
-    let mut button = pins.d2.into_pull_up_input();
-    let mut i2c = I2c::new(
+    let button = pins.d2.into_pull_up_input();
+    let i2c = I2c::new(
         dp.TWI,
         pins.a4.into_pull_up_input(),
         pins.a5.into_pull_up_input(),
         400000,
     );
 
+    ufmt::uwriteln!(&mut serial, "connecting,,,").unwrap_infallible();
     let mut mpu = match Mpu6050::new(i2c, MPU_ADDR) {
         Ok(mpu) => mpu,
         Err(err) => {
@@ -43,15 +44,51 @@ fn main() -> ! {
             panic!();
         }
     };
+    ufmt::uwriteln!(&mut serial, "connected").unwrap_infallible();
 
+    delay_ms(5000);
     ufmt::uwrite!(&mut serial, "Calibrating, hold the IMU level.").unwrap_infallible();
-    delay_ms(1000);
+    delay_ms(2000);
     ufmt::uwrite!(&mut serial, ".").unwrap_infallible();
-    delay_ms(1000);
+    delay_ms(2000);
     ufmt::uwriteln!(&mut serial, ".").unwrap_infallible();
-    let _ = mpu.calibrate();
+
+    let mut ax = 0.;
+    let mut ay = 0.;
+    let mut az = 0.;
+    let mut gx = 0.;
+    let mut gy = 0.;
+    let mut gz = 0.;
+    for _ in 0..100 {
+        if let Ok(data) = mpu.update() {
+            ax += data.accel_x;
+            ay += data.accel_y;
+            az += data.accel_z;
+            gx += data.gyro_x;
+            gy += data.gyro_y;
+            gz += data.gyro_z;
+            delay_ms(10);
+        }
+    }
+
+    let gains = mpu.calibration();
+    gains.accel_bias[0] += ax / 100.0;
+    gains.accel_bias[1] += ay / 100.0;
+    gains.accel_bias[2] += az / 100.0;
+    gains.gyro_bias[0] += gx / 100.0;
+    gains.gyro_bias[1] += gy / 100.0;
+    gains.gyro_bias[2] += gz / 100.0;
+
+    let axg = uFmt_f32::Two(gains.accel_bias[0]);
+    let ayg = uFmt_f32::Two(gains.accel_bias[1]);
+    let azg = uFmt_f32::Two(gains.accel_bias[2]);
+    let gxg = uFmt_f32::Two(gains.gyro_bias[0]);
+    let gyg = uFmt_f32::Two(gains.gyro_bias[1]);
+    let gzg = uFmt_f32::Two(gains.gyro_bias[2]);
 
     ufmt::uwriteln!(&mut serial, "Calibrated!").unwrap_infallible();
+    ufmt::uwriteln!(&mut serial, "Accel biases X/Y/Z: {}/{}/{}", axg, ayg, azg).unwrap_infallible();
+    ufmt::uwriteln!(&mut serial, "Gyro biases X/Y/Z: {}/{}/{}", gxg, gyg, gzg).unwrap_infallible();
 
     ufmt::uwriteln!(&mut serial, "Connected!").unwrap_infallible();
 
@@ -74,7 +111,9 @@ fn main() -> ! {
             let gy = uFmt_f32::Three(data.gyro_y);
             let gz = uFmt_f32::Three(data.gyro_z);
             let temp = uFmt_f32::Two(data.temp);
-            ufmt::uwriteln!(&mut serial, "{} {} {} {} {} {} {} {}", event, ax, ay, az, gx, gy, gz, temp).unwrap_infallible();
+            ufmt::uwriteln!(&mut serial, "{} {} {} {} {} {} {}", event, ax, ay, az, gx, gy, gz).unwrap_infallible();
+
+            delay_ms(50);
         }
     }
 }

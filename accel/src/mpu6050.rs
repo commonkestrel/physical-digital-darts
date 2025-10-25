@@ -23,11 +23,17 @@ const PWR_MGMT_1: u8 = 0x6B;
 const PWR_MGMT_2: u8 = 0x6C;
 const MPU_CONFIG: u8 = 0x1A;
 const SMPLRT_DIV: u8 = 0x19;
-const GYRO_CONFIG: u8 = 0x1B; 
+const GYRO_CONFIG: u8 = 0x1B;
+const ACCEL_CONFIG: u8 = 0x1C;
 const INT_PIN_CFG: u8 = 0x37;
 const INT_ENABLE: u8 = 0x38;
 const INT_STATUS: u8 = 0x3A;
 const ACCEL_XOUT_H: u8 = 0x3B;
+const FIFO_EN: u8 = 0x23;
+const I2C_MST_CTRL: u8 = 0x24;
+const USER_CTRL: u8 = 0x6A;
+const FIFO_COUNTH: u8 = 0x72;
+const FIFO_R_W: u8 = 0x74;
 
 const A_RES: f32 = 16.0 / 32768.0;
 const G_RES: f32 = 2000.0 / 32768.0;
@@ -45,8 +51,8 @@ pub struct MpuData {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CalData {
-    accel_bias: [f32; 3],
-    gyro_bias: [f32; 3],
+    pub accel_bias: [f32; 3],
+    pub gyro_bias: [f32; 3],
 }
 
 impl Default for CalData {
@@ -62,41 +68,48 @@ pub struct Mpu6050{
 }
 
 impl Mpu6050 {
-    pub fn new(mut i2c: I2c, address: u8) -> Result<Mpu6050, Error> {
-        let whoami = read_byte(&mut i2c, address, WHOAMI_REG)?;
+    pub fn new(i2c: I2c, address: u8) -> Result<Mpu6050, Error> {
+        let mut new = Mpu6050 { i2c, address, calibration: CalData::default() };
+        new.init()?;
+
+        return Ok(new)
+    }
+
+    pub fn init(&mut self) -> Result<(), Error> {
+        let whoami = read_byte(&mut self.i2c, self.address, WHOAMI_REG)?;
         if whoami != WHOAMI {
             return Err(Error::Identification)
         }
 
         // reset device
-        write_byte(&mut i2c, address, PWR_MGMT_1, 0x80)?;
+        write_byte(&mut self.i2c, self.address, PWR_MGMT_1, 0x80)?;
         delay_ms(100);
         // wake up device
-        write_byte(&mut i2c, address, PWR_MGMT_1, 0x00)?;
+        write_byte(&mut self.i2c, self.address, PWR_MGMT_1, 0x00)?;
         delay_ms(100);
 
         // get stable time source
-        write_byte(&mut i2c, address, PWR_MGMT_1, 0x03)?;
+        write_byte(&mut self.i2c, self.address, PWR_MGMT_1, 0x03)?;
         delay_ms(200);
 
         // configure gyro and thermometer
-        write_byte(&mut i2c, address, MPU_CONFIG, 0x03)?;
+        write_byte(&mut self.i2c, self.address, MPU_CONFIG, 0x03)?;
         // set sample rate
-        write_byte(&mut i2c, address, SMPLRT_DIV, 0x03)?;
+        write_byte(&mut self.i2c, self.address, SMPLRT_DIV, 0x03)?;
 
-        let mut c= read_byte(&mut i2c, address,  GYRO_CONFIG)?;
+        let mut c= read_byte(&mut self.i2c, self.address,  GYRO_CONFIG)?;
         c = c & !0x03; // Clear Fchoice bits [1:0]
         c = c & !0x18; // Clear GFS bits [4:3]
         c = c | 3 << 3; // Set 2000dps full scale range for the gyro (11 on 4:3)
-        write_byte(&mut i2c, address,  GYRO_CONFIG,c)?;
+        write_byte(&mut self.i2c, self.address,  GYRO_CONFIG,c)?;
 
-        write_byte(&mut i2c, address, MPU_CONFIG,  0x03)?;
+        write_byte(&mut self.i2c, self.address, MPU_CONFIG,  0x03)?;
 
-        write_byte(&mut i2c, address,  INT_PIN_CFG,0x22)?;
-        write_byte(&mut i2c, address, INT_ENABLE,0x01)?;
+        write_byte(&mut self.i2c, self.address,  INT_PIN_CFG,0x22)?;
+        write_byte(&mut self.i2c, self.address, INT_ENABLE,0x01)?;
 
         delay_ms(100);
-        return Ok(Mpu6050 { i2c, address, calibration: CalData::default() });
+        return Ok(());
     }
 
     pub fn update(&mut self) -> Result<MpuData, Error> {
@@ -124,9 +137,9 @@ impl Mpu6050 {
 
         let temp = ((imu_count[3] as f32) / 340.) + 36.53;
         
-        let gx = (imu_count[4] as f32) * A_RES - self.calibration.gyro_bias[0];
-        let gy = (imu_count[5] as f32) * A_RES - self.calibration.gyro_bias[1];
-        let gz = (imu_count[6] as f32) * A_RES - self.calibration.gyro_bias[2];
+        let gx = (imu_count[4] as f32) * G_RES - self.calibration.gyro_bias[0];
+        let gy = (imu_count[5] as f32) * G_RES - self.calibration.gyro_bias[1];
+        let gz = (imu_count[6] as f32) * G_RES - self.calibration.gyro_bias[2];
 
         return Ok(MpuData {
             accel_x: ax,
@@ -141,8 +154,8 @@ impl Mpu6050 {
 
     pub fn calibrate(&mut self) -> Result<(), Error> {
         let mut data: [u8; 12] = [0; 12];
-        let mut gyro_bias: [f32; 3] = [0.; 3];
-        let mut accel_bias: [f32; 3] = [0.; 3];
+        let mut gyro_bias: [i32; 3] = [0; 3];
+        let mut accel_bias: [i32; 3] = [0; 3];
 
         // reset device to reduce drift
         write_byte(&mut self.i2c, self.address, PWR_MGMT_1, 0x80)?;
@@ -153,13 +166,74 @@ impl Mpu6050 {
         delay_ms(200);
 
         write_byte(&mut self.i2c, self.address, INT_ENABLE, 0x00)?;
+        write_byte(&mut self.i2c, self.address, FIFO_EN, 0x00)?;
+        write_byte(&mut self.i2c, self.address, PWR_MGMT_1, 0x00)?;
+        write_byte(&mut self.i2c, self.address, I2C_MST_CTRL, 0x00)?;
+        write_byte(&mut self.i2c, self.address, USER_CTRL, 0x00)?;
+        write_byte(&mut self.i2c, self.address, USER_CTRL, 0x04)?;
+        delay_ms(15);
 
+        write_byte(&mut self.i2c, self.address, MPU_CONFIG, 0x01)?;
+        write_byte(&mut self.i2c, self.address, SMPLRT_DIV, 0x00)?;
+        write_byte(&mut self.i2c, self.address, GYRO_CONFIG, 0x00)?;
+        write_byte(&mut self.i2c, self.address, ACCEL_CONFIG, 0x00)?;
 
-        Ok(())
+        const gyro_sensitivity: u16 = 131; // 131 LSB/degrees/sec
+        const accel_sensitivity: u16 = 16384; // 16384 LSB/g
+
+        // configure FIFO to capture data for calibration
+        write_byte(&mut self.i2c, self.address, USER_CTRL, 0x40)?;
+        write_byte(&mut self.i2c, self.address, FIFO_EN, 0x78)?;
+        delay_ms(40);
+
+        // disable FIFO data collection
+        write_byte(&mut self.i2c, self.address, FIFO_EN, 0x00)?;
+        read_bytes(&mut self.i2c, self.address, FIFO_COUNTH, &mut data[0..2])?;
+        let fifo_count = ((data[0] as u16) << 8) | (data[1] as u16);
+        let packet_count = fifo_count / 12;
+
+        for _ in 0..packet_count {
+            let mut accel_temp: [i16; 3] = [0; 3];
+            let mut gyro_temp: [i16; 3] = [0; 3];
+            read_bytes(&mut self.i2c, self.address, FIFO_R_W, &mut data)?;
+
+            accel_temp[0] = ((data[0] as i16) << 8) | (data[1] as i16);
+            accel_temp[1] = ((data[2] as i16) << 8) | (data[3] as i16);
+            accel_temp[2] = ((data[4] as i16) << 8) | (data[5] as i16);
+            gyro_temp[0] = ((data[6] as i16) << 8) | (data[7] as i16);
+            gyro_temp[1] = ((data[8] as i16) << 8) | (data[9] as i16);
+            gyro_temp[2] = ((data[10] as i16) << 8) | (data[11] as i16);
+
+            accel_bias[0] += accel_temp[0] as i32;
+            accel_bias[1] += accel_temp[1] as i32;
+            accel_bias[2] += accel_temp[2] as i32;
+            gyro_bias[0] += gyro_temp[0] as i32;
+            gyro_bias[1] += gyro_temp[1] as i32;
+            gyro_bias[2] += gyro_temp[2] as i32;
+        }
+
+        accel_bias.iter_mut().for_each(|bias| *bias /= packet_count as i32);
+        gyro_bias.iter_mut().for_each(|bias| *bias /= packet_count as i32);
+
+        if accel_bias[2] > 0 {
+            accel_bias[2] -= accel_sensitivity as i32;
+        } else {
+            accel_bias[2] += accel_sensitivity as i32;
+        }
+
+        self.calibration.accel_bias[0] = (accel_bias[0] as f32) / accel_sensitivity as f32;
+        self.calibration.accel_bias[1] = (accel_bias[1] as f32) / accel_sensitivity as f32;
+        self.calibration.accel_bias[2] = (accel_bias[2] as f32) / accel_sensitivity as f32;
+        self.calibration.gyro_bias[0] = (gyro_bias[0] as f32) / gyro_sensitivity as f32;
+        self.calibration.gyro_bias[1] = (gyro_bias[1] as f32) / gyro_sensitivity as f32;
+        self.calibration.gyro_bias[2] = (gyro_bias[2] as f32) / gyro_sensitivity as f32;
+
+        delay_ms(5000);
+        self.init()
     }
 
-    pub fn cal_data(&self) -> CalData {
-        return self.calibration;
+    pub fn calibration(&mut self) -> &mut CalData {
+        return &mut self.calibration;
     }
 }
 
