@@ -143,7 +143,8 @@ class Dartboard:
     THICK_RING_THICKNESS = 100
     THIN_RING_THICKNESS = 75
     BULLSEYE_THICKNESS = 25
-    PER_REGION_DELTA_THETA = math.pi/8 
+    PER_REGION_DELTA_THETA = math.pi/10
+    THETA_OFFSET = math.pi/20
     #DARTBOARD_SIZE - THIN_RING_THICKNESS*2 - THICK_RING_THICKNESS*2 should = BULLSEYE THICKNESS
 
     def __init__(self, screen, position) -> None:
@@ -171,7 +172,7 @@ class Dartboard:
     def create_circle_of_polar_rectangles(self, radius1, radius2, delta_theta, colors_to_alternate_between):
         polar_rectangles = [] 
         for i in range(int(2*math.pi/delta_theta)):
-            polar_rectangles.append(Polar_Rectangle(radius1, radius2, delta_theta*i, delta_theta*(i+1), colors_to_alternate_between[i%2], self, self.screen))
+            polar_rectangles.append(Polar_Rectangle(radius1, radius2, delta_theta*i+self.THETA_OFFSET, delta_theta*(i+1)+self.THETA_OFFSET, colors_to_alternate_between[i%2], self, self.screen))
         return polar_rectangles
     
     @staticmethod

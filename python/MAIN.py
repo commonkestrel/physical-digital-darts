@@ -15,7 +15,7 @@ pygame.display.set_caption("PHYSICAL DIGITAL DARTS")
 # Clock for controlling frame rate
 clock = pygame.time.Clock()
 FPS = 60 # Frames per second
-dartboard = Dartboard(screen, (0,3,10))
+dartboard = Dartboard(screen, (0,3,5))
 dart_manager = DartManager(dartboard, screen)
 print(dartboard)
 
@@ -35,7 +35,7 @@ while running:
             mouse_x, mouse_y = event.pos
             dart_manager.throw_dart(mouse_x, mouse_y, 1, [0,100,2])
 
-    screen.fill((0, 0, 0))
+    screen.fill((96, 59, 42))
     dartboard.draw_self()
     Dart.draw_all(screen)
     dartboard.check_for_collisions(Dart.all_darts)
