@@ -10,6 +10,12 @@ if useSerial:
     serialInst = serial.Serial('COM3', 115200)
     time.sleep(1)
 
+#0 v v v p p p
+#0 - not pressed
+#1 - if pressed
+#2 - just pressed
+#3 - just released
+
 while dartboardSimulator.loop():
     if useSerial:
         parsedData = serialInst.read()
