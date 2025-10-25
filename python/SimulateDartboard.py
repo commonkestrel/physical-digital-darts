@@ -18,12 +18,13 @@ if useSerial:
 
 while dartboardSimulator.loop(should_throw_debug=True, should_preview_debug=True):
     if useSerial:
-        parsedData = serialInst.read()
-        parsedButtonState = 0 
-        parsedXPos, parsedYPos, parsedZPos = 0, 0 , 0 #Will probably need to be scaled into pygame screen coordinates
-        parsedXVel, parsedYVel, parsedZVel = 0, 0 , 0 #Will probably need to be scaled into pygame screen coordinates
-        #Parse the serial data in a particular way, if button released, then throw dart
-        dart_should_be_thrown = False #based on parsedButtonState
+        numBytes = serialInst.in_waiting
+        data = serialInst.read(numBytes)
+        parsedData = list(map(int, data.strip().split()))
+        parsedButtonState = parsedData[0]
+        parsedXPos, parsedYPos, parsedZPos = parsedData[1], parsedData[2], parsedData[3] 
+        parsedXVel, parsedYVel, parsedZVel = parsedData[4], parsedData[5], parsedData[6] 
+        dart_should_be_thrown = parsedButtonState == 3
         if dart_should_be_thrown:
             dartboardSimulator.dart_manager.throw_dart(parsedXPos, parsedYPos, parsedZPos, (parsedXVel, parsedYVel, parsedZVel))
-        dartboardSimulator.draw_dart_pos_preview(parsedXPos, parsedYPos) #Will probably need to be scaled into pygame screen 
+        dartboardSimulator.draw_dart_pos_preview(parsedXPos, parsedYPos) 
