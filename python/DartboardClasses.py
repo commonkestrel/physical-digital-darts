@@ -2,7 +2,7 @@ import math
 import pygame
 
 class Dart:
-    RADIUS = 10
+    RADIUS = 50
     COLOR = (100,100,255)
     LIFETIME = 100
     all_darts = []
@@ -26,7 +26,7 @@ class Dart:
         elif self.should_decay and self.lifetime <= 0:
             Dart.all_darts.remove(self)
         else:
-            pygame.draw.circle(self.screen, self.COLOR, self.position[:2], self.RADIUS*(self.position[2]/(self.dartboard.position[2]-self.position[2])))
+            pygame.draw.circle(self.screen, self.COLOR, self.position[:2], self.RADIUS*(1-self.position[2]/(self.dartboard.position[2]-self.position[2])))
 
     def has_reached_dartboard_depth(self):
         at_or_past_dartboard = self.position[2] >= self.dartboard.position[2]
