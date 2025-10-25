@@ -1,5 +1,6 @@
 import pygame
 from DartboardClasses import Dartboard, Polar_Rectangle, Dart
+from PhysicsSimClasses import DartManager
 import math
 
 # Initialize Pygame
@@ -14,7 +15,8 @@ pygame.display.set_caption("PHYSICAL DIGITAL DARTS")
 # Clock for controlling frame rate
 clock = pygame.time.Clock()
 FPS = 60 # Frames per second
-dartboard = Dartboard(screen)
+dartboard = Dartboard(screen, (0,3,10))
+dart_manager = DartManager(dartboard, screen)
 print(dartboard)
 
 
@@ -31,19 +33,19 @@ while running:
         if event.type == pygame.MOUSEBUTTONDOWN:
             # Get the mouse position at the time of the click
             mouse_x, mouse_y = event.pos
-            dart = Dart(mouse_x, mouse_y, 1, [0,100,1], screen)
+            dart_manager.throw_dart(mouse_x, mouse_y, 1, [0,100,0.5])
 
     screen.fill((0, 0, 0))
     dartboard.draw_self()
-    dartboard.check_for_collisions(Dart.all_darts)
-
     Dart.draw_all(screen)
+    dartboard.check_for_collisions(Dart.all_darts)
+    dart_manager.update_dart_positions(clock.tick(FPS)/1000)
 
     # Update the display
     pygame.display.update()
 
     # Control frame rate
-    clock.tick(FPS)
+    
 
 # Quit Pygame
 pygame.quit()

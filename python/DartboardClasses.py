@@ -6,21 +6,31 @@ class Dart:
     COLOR = (100,100,255)
     LIFETIME = 100
     all_darts = []
-    def __init__(self, x, y, z, exit_velocity, screen):
+    def __init__(self, x, y, z, exit_velocity, screen, dartboard):
         Dart.all_darts.append(self)
+        self.dartboard = dartboard
         self.should_decay = False
         self.velocity = exit_velocity
+        self.velocity[1] = -self.velocity[1]
         self.lifetime = Dart.LIFETIME
         self.screen = screen
         self.starting_distance_from_dartboard = z #CURRENTLY DOESN'T ACTUALLY REPRESENT DISTANCE FROM DARTBOARD ON LAUNCH
         self.position = [x, y, z]
 
     def draw_self(self):
-        if self.should_decay and self.lifetime > 0:
+        if self.has_reached_dartboard_depth():
+            self.should_decay = True
+        elif self.should_decay and self.lifetime > 0:
             self.lifetime -= 1
-            pygame.draw.circle(self.screen, self.COLOR, self.position[:2], self.RADIUS*(self.position[2]/self.starting_distance_from_dartboard))
-        else:
+            pygame.draw.circle(self.screen, self.COLOR, self.position[:2], self.RADIUS)
+        elif self.should_decay and self.lifetime <= 0:
             Dart.all_darts.remove(self)
+        else:
+            pygame.draw.circle(self.screen, self.COLOR, self.position[:2], self.RADIUS*(self.position[2]/(self.dartboard.position[2]-self.position[2])))
+
+    def has_reached_dartboard_depth(self):
+        at_or_past_dartboard = self.position[2] >= self.dartboard.position[2]
+        return at_or_past_dartboard
        
     def __repr__(self):
         return "Dart Coordinates: " + str(self.position)
@@ -51,26 +61,17 @@ class Polar_Rectangle:
     def check_for_collision(self, darts):
         has_collided = False
         for dart in darts:
-            at_or_past_dartboard = dart.position[2] >= self.dartboard.position[2]
-            if at_or_past_dartboard:
-                has_collided = self.point_in_polygon(dart.position, self.xy_corners)
-                if has_collided:
-                    self.color = self.HIT_COLOR
+            has_collided = self.point_in_polygon(dart.position, self.xy_corners)
+            if has_collided:
+                self.color = self.HIT_COLOR
+                if dart.has_reached_dartboard_depth():
                     self.when_collide(dart)
-                    return has_collided
-                else:
-                    self.when_miss(dart)
-                    return has_collided
+                return has_collided
         self.color = self.non_hit_color
         return has_collided
     
     def when_collide(self, dart):
-        dart.should_decay = True
         print(f'Collided with: {dart}')
-
-    def when_miss(self, dart):
-        Dart.all_darts.remove(dart)
-        print(f'Missed with: {dart}')
     
     def point_in_polygon(self, point, polygon):
         num_vertices = len(polygon)
@@ -120,9 +121,10 @@ class Dartboard:
     PER_REGION_DELTA_THETA = math.pi/8 
     #DARTBOARD_SIZE - THIN_RING_THICKNESS*2 - THICK_RING_THICKNESS*2 should = BULLSEYE THICKNESS
 
-    def __init__(self, screen) -> None:
+    def __init__(self, screen, position) -> None:
         self.DARTBOARD_SIZE = self.THIN_RING_THICKNESS*2 + self.THICK_RING_THICKNESS*2 + self.BULLSEYE_THICKNESS*2
         self.screen = screen
+        self.position = position
         self.all_rings = []
         self.all_rings.append(self.create_circle_of_polar_rectangles(self.DARTBOARD_SIZE-self.THIN_RING_THICKNESS,self.DARTBOARD_SIZE,self.PER_REGION_DELTA_THETA,(Dartboard.RED, Dartboard.GREEN)))
         self.all_rings.append(self.create_circle_of_polar_rectangles(self.DARTBOARD_SIZE-self.THIN_RING_THICKNESS-self.THICK_RING_THICKNESS,self.DARTBOARD_SIZE-self.THIN_RING_THICKNESS,self.PER_REGION_DELTA_THETA,(Dartboard.BLACK, Dartboard.WHITE)))
