@@ -6,7 +6,7 @@ class Dart:
     MIN_RADIUS = 10
     COLOR = (100,100,255)
     LIFETIME = 100
-    TOLERANCE = 0.25
+    TOLERANCE = 10
     all_darts = []
     def __init__(self, x, y, z, exit_velocity, screen, dartboard):
         Dart.all_darts.append(self)

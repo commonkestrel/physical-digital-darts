@@ -1,4 +1,5 @@
 from DartboardClasses import Dartboard, Dart
+import pygame
 
 class DartManager:
     DART_GRAVITY = -.98
@@ -17,5 +18,8 @@ class DartManager:
                 dart.position[2] += dart.velocity[2] * self.VELOCITY_SCALARS[2] * deltaTime
                 #print(dart)
 
-    def throw_dart(self, x, y, z, exit_velocity):
+    def throw_dart(self, exit_velocity):
+        Dart(self.screen.get_width()//2, self.screen.get_height()//2, 1, exit_velocity, self.screen, self.dartboard)
+
+    def throw_dart_using_mouse(self, x, y, z, exit_velocity):
         Dart(x, y, z, exit_velocity, self.screen, self.dartboard)
