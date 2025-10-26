@@ -3,6 +3,7 @@
 #![feature(abi_avr_interrupt)]
 
 mod mpu6050;
+mod rolling_buffer;
 
 use core::cell;
 
@@ -11,11 +12,10 @@ use panic_halt as _;
 use arduino_hal::{delay_ms, i2c::I2c, prelude::*};
 use ufmt_float::uFmt_f32;
 
-use crate::mpu6050::Mpu6050;
+use crate::{mpu6050::Mpu6050, rolling_buffer::Collection};
 
 const IMU_ADDR: u8 = 0x68;
-const G_TO_M: f32 = 9.80665;
-const ALPHA: f32 = 0.93;
+const ALPHA: f32 = 0.85;
 
 #[arduino_hal::entry]
 fn main() -> ! {
@@ -28,7 +28,7 @@ fn main() -> ! {
     // Enable interrupts globally
     unsafe { avr_device::interrupt::enable() };
 
-    let button = pins.d2.into_pull_up_input();
+    let button = pins.d3.into_pull_up_input();
     let i2c = I2c::new(
         dp.TWI,
         pins.a4.into_pull_up_input(),
@@ -53,31 +53,31 @@ fn main() -> ! {
 
     // imu.calibrate().unwrap();
 
-    let mut ax = 0.;
-    let mut ay = 0.;
-    let mut az = 0.;
-    let mut gx = 0.;
-    let mut gy = 0.;
-    let mut gz = 0.;
-    for _ in 0..1000 {
-        if let Ok(data) = imu.update() {
-            ax += data.accel_x;
-            ay += data.accel_y;
-            az += data.accel_z;
-            gx += data.gyro_x;
-            gy += data.gyro_y;
-            gz += data.gyro_z;
-            delay_ms(20);
-        }
-    }
+    // let mut ax = 0.;
+    // let mut ay = 0.;
+    // let mut az = 0.;
+    // let mut gx = 0.;
+    // let mut gy = 0.;
+    // let mut gz = 0.;
+    // for _ in 0..1000 {
+    //     if let Ok(data) = imu.update() {
+    //         ax += data.accel_x;
+    //         ay += data.accel_y;
+    //         az += data.accel_z;
+    //         gx += data.gyro_x;
+    //         gy += data.gyro_y;
+    //         gz += data.gyro_z;
+    //         delay_ms(10);
+    //     }
+    // }
 
-    let gains = imu.calibration();
-    gains.accel_bias[0] += ax / 1000.0;
-    gains.accel_bias[1] += ay / 1000.0;
-    gains.accel_bias[2] += az / 1000.0;
-    gains.gyro_bias[0] += gx / 1000.0;
-    gains.gyro_bias[1] += gy / 1000.0;
-    gains.gyro_bias[2] += gz / 1000.0;
+    // let gains = imu.calibration();
+    // gains.accel_bias[0] += ax / 1000.0;
+    // gains.accel_bias[1] += ay / 1000.0;
+    // gains.accel_bias[2] += az / 1000.0;
+    // gains.gyro_bias[0] += gx / 1000.0;
+    // gains.gyro_bias[1] += gy / 1000.0;
+    // gains.gyro_bias[2] += gz / 1000.0;
 
     // let axg = uFmt_f32::Two(gains.accel_bias[0]);
     // let ayg = uFmt_f32::Two(gains.accel_bias[1]);
@@ -99,6 +99,8 @@ fn main() -> ! {
 
     let mut vx = 0.;
     let mut prev_time = millis();
+    let mut ax_gain = 0.;
+    let mut rolling: Collection<10> = Collection::new();
 
     let mut prev = button.is_low();
     loop {
@@ -126,20 +128,34 @@ fn main() -> ! {
             roll = ALPHA * roll + (1. - ALPHA) * new_roll;
             pitch = ALPHA * pitch + (1. - ALPHA) * new_pitch;
 
-            vx += data.accel_x * dt;
+            if rolling.full() && (rolling.avg() - data.accel_x).abs() < 0.25 {
+                rolling.clear();
+                ax_gain = data.accel_x;
+            } else {
+                rolling.push(data.accel_x);
+            }
+
+            vx += deadband(data.accel_x - ax_gain, 1.) * dt;
+            vx *= 0.5;
 
             prev_time = time;
 
             let fmtx = uFmt_f32::Three(roll);
             let fmty = uFmt_f32::Three(pitch);
             let fmtz = uFmt_f32::Three(yaw);
-            let gx = uFmt_f32::Three(vx);
+            let gx = (vx * 1000.).abs() as i32;
             let temp = uFmt_f32::Two(data.temp);
-            ufmt::uwriteln!(&mut serial, "{} {} {} {} {}", event, fmtx, fmty, fmtz, gx).unwrap_infallible();
+            let ax = uFmt_f32::Three(data.accel_x);
+            ufmt::uwriteln!(&mut serial, "{} {} {} {} {} {}", event, fmtx, fmty, fmtz, gx, ax).unwrap_infallible();
 
             delay_ms(50);
         }
     }
+}
+
+#[inline]
+fn deadband(input: f32, band: f32) -> f32 {
+    if input.abs() < band { 0. } else { input }
 }
 
 // Possible Values:
