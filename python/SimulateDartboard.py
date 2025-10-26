@@ -18,9 +18,12 @@ if useSerial:
 #2 - just pressed
 #3 - just released
 
-dartboardSimulator = DartboardSimulator(5)
-max_parsed_speed = 0.5
+dartboardSimulator = DartboardSimulator(3)
+max_parsed_speed = 0.35
 desired_parsed_speed = 150
+
+def throttle_curve(throttle):
+    return desired_parsed_speed*math.tanh(3*throttle/max_parsed_speed)
 
 while dartboardSimulator.loop(should_throw_debug=True, should_preview_debug=False):
     if useSerial:
@@ -41,7 +44,8 @@ while dartboardSimulator.loop(should_throw_debug=True, should_preview_debug=Fals
 
             dart_should_be_thrown = parsedButtonState == 3
             if dart_should_be_thrown:
-                parsedSpeed = max(0,min(max_parsed_speed,parsedSpeed))/max_parsed_speed * desired_parsed_speed
+                #parsedSpeed = throttle_curve(parsedSpeed)
+                parsedSpeed=desired_parsed_speed
                 print(f"Adjusted parsedSpeed {parsedSpeed}")
                 depth = 1*math.cos(math.radians(parsedYaw))*math.sin(math.radians(parsedPitch))
                 left_and_right_movement = math.sin(math.radians(parsedYaw))*math.sin(math.radians(parsedPitch))*parsedSpeed
