@@ -6,6 +6,10 @@ import math
 class DartboardSimulator:
     FPS = 60
     PREVIEW_RADIUS = Dart.MIN_RADIUS + Dart.RADIUS
+
+    YAWS = iter(range(-45,45,15))
+    PITCHES = iter(range(45,-45,-15))
+
     def __init__(self, dartboard_depth, screen_width=800, screen_height=800):
         pygame.init()
         #self.screen = pygame.display.set_mode((screen_width, screen_height), pygame.RESIZABLE)
@@ -41,17 +45,26 @@ class DartboardSimulator:
             
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
-                    pitch = 90
-                    yaw = 0
-                    speed = 100
-                    #With x as depth/default to yaw=0
-                    #left_and_right_movement = 1 * math.cos(math.radians(yaw)) * math.sin(math.radians(pitch))
+                    speed = 150
+                    yaw=0
+                    pitch=45
+                    #pitch = max(0,pitch)
+
                     left_and_right_movement = speed * math.sin(math.radians(yaw)) * math.sin(math.radians(pitch))
                     up_and_down_movement = speed * math.cos(math.radians(pitch))
+                    depth = 1 * math.cos(math.radians(yaw)) * math.sin(math.radians(pitch))
 
-                    print(left_and_right_movement, up_and_down_movement)
+                    print(yaw, pitch)
+                    print(left_and_right_movement, up_and_down_movement, depth)
                     
-                    self.throw_dart([left_and_right_movement, up_and_down_movement, 1])
+                    self.throw_dart([left_and_right_movement, up_and_down_movement, depth])
+
+                    # pitch = 45
+                    # yaw = 45
+                    # speed = 100
+                    #With x as depth/default to yaw=0
+                    #left_and_right_movement = 1 * math.cos(math.radians(yaw)) * math.sin(math.radians(pitch))
+
                 else:
                     Dart.all_darts = []
             
