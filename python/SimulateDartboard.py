@@ -27,7 +27,12 @@ def throttle_curve(throttle):
 
 while dartboardSimulator.loop(should_throw_debug=True, should_preview_debug=False):
     if useSerial:
-        data = serialInst.readline().decode('utf-8').strip()
+        try:
+            data = serialInst.readline().decode('utf-8').strip()
+        except serial.SerialException:
+            print("Serial monitor disconnected")
+            continue
+        
         try:
             parsedData = list(map(float, data.strip().split()))
             #print(parsedData)
@@ -46,7 +51,7 @@ while dartboardSimulator.loop(should_throw_debug=True, should_preview_debug=Fals
             if dart_should_be_thrown:
                 #parsedSpeed = throttle_curve(parsedSpeed)
                 parsedSpeed=desired_parsed_speed
-                print(f"Adjusted parsedSpeed {parsedSpeed}")
+                #print(f"Adjusted parsedSpeed {parsedSpeed}")
                 depth = 1*math.cos(math.radians(parsedYaw))*math.sin(math.radians(parsedPitch))
                 left_and_right_movement = math.sin(math.radians(parsedYaw))*math.sin(math.radians(parsedPitch))*parsedSpeed
                 up_and_down_movement = math.cos(math.radians(parsedPitch))*parsedSpeed
