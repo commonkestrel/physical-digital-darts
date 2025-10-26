@@ -25,7 +25,7 @@ class Dart:
         if self.should_decay and self.lifetime > 0:
             self.lifetime -= 1
 
-        if self.should_decay and self.lifetime <= 0:
+        if (self.should_decay and self.lifetime <= 0) or self.position[1] > self.screen.get_height()*2:
             Dart.all_darts.remove(self)
         
         percent_of_distance_traveled = (self.position[2]-self.starting_distance_from_dartboard)/(self.dartboard.position[2]-self.starting_distance_from_dartboard)

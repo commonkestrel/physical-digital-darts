@@ -2,7 +2,7 @@ import serial.tools.list_ports
 import time
 from DartboardSimulator import DartboardSimulator
 
-useSerial = True
+useSerial = False
 
 if useSerial:
     ports = serial.tools.list_ports.comports()
