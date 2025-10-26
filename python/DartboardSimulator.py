@@ -6,14 +6,16 @@ import math
 class DartboardSimulator:
     FPS = 60
     PREVIEW_RADIUS = Dart.MIN_RADIUS + Dart.RADIUS
-    def __init__(self, dartboard_pos, screen_width=800, screen_height=800):
+    def __init__(self, dartboard_depth, screen_width=800, screen_height=800):
         pygame.init()
+        #self.screen = pygame.display.set_mode((screen_width, screen_height), pygame.RESIZABLE)
         self.screen = pygame.display.set_mode((screen_width, screen_height))
+
         pygame.display.set_caption("PHYSICAL DIGITAL DARTS")
 
         self.clock = pygame.time.Clock()
         
-        self.dartboard = Dartboard(self.screen, dartboard_pos)
+        self.dartboard = Dartboard(self.screen, [0, 0, dartboard_depth]) # x and y are obselete
         self.dart_manager = DartManager(self.dartboard, self.screen)
         self.mouse_pos = (0,0)
         #print(self.dartboard)
