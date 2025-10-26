@@ -16,7 +16,7 @@ if useSerial:
 #2 - just pressed
 #3 - just released
 
-dartboardSimulator = DartboardSimulator((0,3,5))
+dartboardSimulator = DartboardSimulator((0,0,5))
 
 while dartboardSimulator.loop(should_throw_debug=True, should_preview_debug=True):
     if useSerial:

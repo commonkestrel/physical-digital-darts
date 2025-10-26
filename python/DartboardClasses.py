@@ -6,11 +6,13 @@ class Dart:
     MIN_RADIUS = 10
     COLOR = (100,100,255)
     LIFETIME = 100
+    TOLERANCE = 0.25
     all_darts = []
     def __init__(self, x, y, z, exit_velocity, screen, dartboard):
         Dart.all_darts.append(self)
         self.dartboard = dartboard
         self.should_decay = False
+        self.on_dartboard = False
         self.velocity = exit_velocity
         self.velocity[1] = -self.velocity[1]
         self.lifetime = Dart.LIFETIME
@@ -19,7 +21,7 @@ class Dart:
         self.position = [x, y, z]
 
     def draw_self(self):
-        if self.has_reached_dartboard_depth():
+        if self.has_reached_dartboard_depth() and self.on_dartboard:
             self.should_decay = True
 
         if self.should_decay and self.lifetime > 0:
@@ -32,7 +34,7 @@ class Dart:
         pygame.draw.circle(self.screen, self.COLOR, self.position[:2], self.MIN_RADIUS+self.RADIUS*(1-percent_of_distance_traveled))
 
     def has_reached_dartboard_depth(self):
-        at_or_past_dartboard = self.position[2] >= self.dartboard.position[2]
+        at_or_past_dartboard = self.position[2] >= self.dartboard.position[2] and self.position[2] <= self.dartboard.position[2] + self.TOLERANCE
         return at_or_past_dartboard
        
     def __repr__(self):
@@ -65,17 +67,17 @@ class Polar_Rectangle:
         for dart in darts:
             has_collided = self.point_in_polygon(dart.position, self.xy_corners)
             if has_collided:
-                self.when_projected_collide()
+                if dart.position[2] < self.dartboard.position[2]:
+                    self.when_projected_collide()
                 if dart.has_reached_dartboard_depth():
                     self.when_collide(dart)
-                    #return True #Collided including the depth
                 return True #Collided only in x-y projection
         self.color = self.non_hit_color
         return False
     
     def when_collide(self, dart):
+        dart.on_dartboard = True
         #print(f'Collided with: {dart}')
-        pass
 
     def when_projected_collide(self):
         self.color = self.HIT_COLOR
@@ -128,8 +130,8 @@ class Polar_Circle:
             polar_rectangle.draw_self()
 
     def check_for_collision(self, darts):
-        any_collisions = any([polar_rectangle.check_for_collision(darts) for polar_rectangle in self.list_of_polar_rectangles])
-        if any_collisions:
+        any_projected_collisions = any([polar_rectangle.check_for_collision(darts) for polar_rectangle in self.list_of_polar_rectangles])
+        if any_projected_collisions:
             for polar_rectangle in self.list_of_polar_rectangles:
                 polar_rectangle.when_projected_collide()
                 
