@@ -1,4 +1,4 @@
-use core::{iter, mem::MaybeUninit, ops::{Add, Div}, slice};
+use core::mem::MaybeUninit;
 
 pub struct Collection<const LEN: usize> {
     arr: [MaybeUninit<f32>; LEN],

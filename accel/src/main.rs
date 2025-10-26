@@ -4,15 +4,15 @@
 
 mod mpu6050;
 mod rolling_buffer;
+mod f32_ufmt;
 
 use core::cell;
 
 use micromath::F32Ext;
 use panic_halt as _;
 use arduino_hal::{delay_ms, i2c::I2c, prelude::*};
-use ufmt_float::uFmt_f32;
 
-use crate::{mpu6050::Mpu6050, rolling_buffer::Collection};
+use crate::{f32_ufmt::ThreeFmt, mpu6050::Mpu6050, rolling_buffer::Collection};
 
 const IMU_ADDR: u8 = 0x68;
 const ALPHA: f32 = 0.85;
@@ -44,63 +44,20 @@ fn main() -> ! {
         }
     };
 
-    // delay_ms(5000);
-    // ufmt::uwrite!(&mut serial, "Calibrating, hold the IMU level.").unwrap_infallible();
-    // delay_ms(2000);
-    // ufmt::uwrite!(&mut serial, ".").unwrap_infallible();
-    // delay_ms(2000);
-    // ufmt::uwriteln!(&mut serial, ".").unwrap_infallible();
-
-    // imu.calibrate().unwrap();
-
-    // let mut ax = 0.;
-    // let mut ay = 0.;
-    // let mut az = 0.;
-    // let mut gx = 0.;
-    // let mut gy = 0.;
-    // let mut gz = 0.;
-    // for _ in 0..1000 {
-    //     if let Ok(data) = imu.update() {
-    //         ax += data.accel_x;
-    //         ay += data.accel_y;
-    //         az += data.accel_z;
-    //         gx += data.gyro_x;
-    //         gy += data.gyro_y;
-    //         gz += data.gyro_z;
-    //         delay_ms(10);
-    //     }
-    // }
-
-    // let gains = imu.calibration();
-    // gains.accel_bias[0] += ax / 1000.0;
-    // gains.accel_bias[1] += ay / 1000.0;
-    // gains.accel_bias[2] += az / 1000.0;
-    // gains.gyro_bias[0] += gx / 1000.0;
-    // gains.gyro_bias[1] += gy / 1000.0;
-    // gains.gyro_bias[2] += gz / 1000.0;
-
-    // let axg = uFmt_f32::Two(gains.accel_bias[0]);
-    // let ayg = uFmt_f32::Two(gains.accel_bias[1]);
-    // let azg = uFmt_f32::Two(gains.accel_bias[2]);
-    // let gxg = uFmt_f32::Two(gains.gyro_bias[0]);
-    // let gyg = uFmt_f32::Two(gains.gyro_bias[1]);
-    // let gzg = uFmt_f32::Two(gains.gyro_bias[2]);
-
-    // ufmt::uwriteln!(&mut serial, "Calibrated!").unwrap_infallible();
-    // ufmt::uwriteln!(&mut serial, "Accel biases X/Y/Z: {}/{}/{}", axg, ayg, azg).unwrap_infallible();
-    // ufmt::uwriteln!(&mut serial, "Gyro biases X/Y/Z: {}/{}/{}", gxg, gyg, gzg).unwrap_infallible();
-
     ufmt::uwriteln!(&mut serial, "Connected!").unwrap_infallible();
 
     let init = imu.update().unwrap();
-    let mut roll = init.accel_y.atan2(init.accel_z).to_degrees();
-    let mut pitch = (-init.accel_x).atan2((init.accel_y*init.accel_y + init.accel_z*init.accel_z).sqrt()).to_degrees();
+    let mut roll = (-init.accel_x).atan2((init.accel_y*init.accel_y + init.accel_z*init.accel_z).sqrt()).to_degrees();
+    let mut pitch = init.accel_y.atan2(init.accel_z).to_degrees();
     let mut yaw = 0.;
 
     let mut vx = 0.;
     let mut prev_time = millis();
     let mut ax_gain = 0.;
+    let mut gz_gain = 0.;
     let mut rolling: Collection<10> = Collection::new();
+    let mut rolling_yaw: Collection<5> = Collection::new();
+    let mut last_button = 0;
 
     let mut prev = button.is_low();
     loop {
@@ -110,20 +67,46 @@ fn main() -> ! {
                 (false, false) => 0,
                 (true, true) => 1,
                 (false, true) => 2,
-                (true, false) => 3,
+                (true, false) => {
+                    prev_time = millis();
+                    if prev_time - last_button < 500 {
+                        ax_gain = data.accel_x;
+                        rolling.clear();
+                        gz_gain = data.gyro_z;
+                        rolling_yaw.clear();
+                        roll = (-init.accel_x).atan2((init.accel_y*init.accel_y + init.accel_z*init.accel_z).sqrt()).to_degrees();
+                        pitch = init.accel_y.atan2(init.accel_z).to_degrees();
+                        yaw = 0.;
+                        vx = 0.;
+                        continue;
+                    }
+                    last_button = prev_time;
+                    3
+                },
             };
             prev = new;
 
             let time = millis();
             let dt = (time - prev_time) as f32 / 1000.0;
 
+            if rolling_yaw.full() && (rolling_yaw.avg() - data.gyro_z).abs() < 0.25 {
+                rolling_yaw.clear();
+                gz_gain = data.gyro_z;
+            } else {
+                rolling_yaw.push(data.gyro_z);
+            }
+
             roll += data.gyro_x * dt;
             pitch += data.gyro_y * dt;
-            yaw += data.gyro_z * dt;
+            yaw += (data.gyro_z - gz_gain) * dt;
             
             // complimentary filter on our orientation :)
-            let new_roll = data.accel_y.atan2(data.accel_z).to_degrees();
-            let new_pitch = (-data.accel_x).atan2((data.accel_y*data.accel_y + data.accel_z*data.accel_z).sqrt()).to_degrees();
+            let new_pitch = data.accel_y.atan2(data.accel_z).to_degrees();
+            let new_roll = (-data.accel_x).atan2((data.accel_y*data.accel_y + data.accel_z*data.accel_z).sqrt()).to_degrees();
+
+            if roll.signum() != new_pitch.signum() {
+                pitch = new_pitch;
+            }
 
             roll = ALPHA * roll + (1. - ALPHA) * new_roll;
             pitch = ALPHA * pitch + (1. - ALPHA) * new_pitch;
@@ -140,13 +123,11 @@ fn main() -> ! {
 
             prev_time = time;
 
-            let fmtx = uFmt_f32::Three(roll);
-            let fmty = uFmt_f32::Three(pitch);
-            let fmtz = uFmt_f32::Three(yaw);
-            let gx = (vx * 1000.).abs() as i32;
-            let temp = uFmt_f32::Two(data.temp);
-            let ax = uFmt_f32::Three(data.accel_x);
-            ufmt::uwriteln!(&mut serial, "{} {} {} {} {} {}", event, fmtx, fmty, fmtz, gx, ax).unwrap_infallible();
+            let fmtx = ThreeFmt(roll);
+            let fmty = ThreeFmt(fix_pitch(pitch));
+            let fmtz = ThreeFmt(yaw);
+            let gx = ThreeFmt(vx.abs());
+            ufmt::uwriteln!(&mut serial, "{} {} {} {} {}", event, fmtx, fmty, fmtz, gx).unwrap_infallible();
 
             delay_ms(50);
         }
@@ -156,6 +137,15 @@ fn main() -> ! {
 #[inline]
 fn deadband(input: f32, band: f32) -> f32 {
     if input.abs() < band { 0. } else { input }
+}
+
+#[inline]
+fn fix_pitch(pitch: f32) -> f32 {
+    if pitch < 0. {
+        return 180. + pitch;
+    } else {
+        return pitch - 180.;
+    }
 }
 
 // Possible Values:
