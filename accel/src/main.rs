@@ -142,9 +142,9 @@ fn deadband(input: f32, band: f32) -> f32 {
 #[inline]
 fn fix_pitch(pitch: f32) -> f32 {
     if pitch < 0. {
-        return 180. + pitch;
+        return -90. - pitch;
     } else {
-        return pitch - 180.;
+        return 270. - pitch;
     }
 }
 
